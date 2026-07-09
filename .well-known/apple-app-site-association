@@ -1,0 +1,13 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": ["8QGJVMQ8R5.org.l3xgg.hmo-ios"],
+        "components": [
+          { "/": "/i/*" }
+        ]
+      }
+    ]
+  }
+}

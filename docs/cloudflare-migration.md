@@ -2,7 +2,16 @@
 
 ## Status (2026-09-21)
 
-Steps 1, 2 and 6 are implemented in the repo and verified locally with `wrangler dev`. Still open: step 4 (first deploy to workers.dev), step 5 (domain move), and the two GitHub secrets for step 6.
+Done:
+
+- Steps 1, 2, 4 and 6. The Worker is live at `https://hmo-landing.lonely-labs-landing.workers.dev`, the step 4 checklist passes there, and per-invite cards (with the image) were confirmed in Telegram and iMessage. Pushes to `main` deploy through `.github/workflows/deploy.yml`; the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repo secrets are set.
+- Step 5, first half. The `hearmeout.social` zone exists in Cloudflare (Free plan) with every record copied from Namecheap, all DNS only: the four GitHub Pages `A` records, `www` CNAME, both `MX`, SPF `TXT`, DKIM `TXT` (`privateemail._domainkey`), the `mail` / `autodiscover` / `autoconfig` CNAMEs, the `_autodiscover._tcp` SRV and the GitHub Pages challenge `TXT`. Namecheap nameservers were changed to `ajay.ns.cloudflare.com` / `maeve.ns.cloudflare.com`.
+
+Still open (step 5, second half):
+
+- Wait for the `.social` registry to pick up the new nameservers and for Cloudflare to mark the zone Active. Until then GitHub Pages keeps serving `hearmeout.social`, so `/i/<CODE>` there is still a 404 without a Telegram preview.
+- Then: uncomment `routes` in `wrangler.jsonc`, delete the GitHub Pages `A` / `www` records from the Cloudflare zone (a custom domain can't be attached while they exist), push, re-run the checklist against `https://hearmeout.social`, check Apple's AASA CDN copy, and retire GitHub Pages (`CNAME`, `.nojekyll`, the Pages setting in the repo, the challenge `TXT`). The mail records must stay DNS only.
+- Afterwards, update `README.md` (drop the transition note) and the GitHub Pages wording in the `404.html` comments.
 
 How the implementation differs from the plan below:
 
@@ -10,6 +19,7 @@ How the implementation differs from the plan below:
 - **Assets come from `dist/`, not the repo root.** With `directory: "./"`, `wrangler dev` reloads forever (`.wrangler/` sits inside the watched folder), and a deny-list `.assetsignore` is easy to get wrong. `npm run build` copies an explicit list of site files into `dist/`; `wrangler dev` / `wrangler deploy` run it automatically. A new static file has to be added to that list in `package.json`. Once GitHub Pages is retired the files can simply move into a `public/` folder.
 - **Head tags are rewritten with `HTMLRewriter`** (escapes values itself) instead of string replacement, and the page body comes from `ASSETS.fetch('/i/<CODE>')`, which is the 404 page, because `/404.html` itself redirects to `/404` under the default `html_handling`.
 - Same default means `/privacy.html` and `/terms.html` answer 307 to `/privacy` and `/terms`. Existing links keep working.
+- **The image tags carry a version (`og-preview.jpg?v=2`)** because messengers cache a failed image fetch by URL, and the Worker rewrites them to the origin that answered, so the workers.dev card doesn't depend on `hearmeout.social`. Bump the version (or rename the file) whenever the image changes.
 
 ## Context
 

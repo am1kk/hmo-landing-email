@@ -7,8 +7,9 @@
 <title>Hear Me Out</title>
 
 <!-- Link previews (iMessage / WhatsApp / Telegram / Slack / X). Crawlers don't
-     run JS, and GitHub Pages serves this file for every /i/<CODE>, so the
-     preview is one static card that mirrors the page layout. -->
+     run JS and this one file is served for every /i/<CODE>, so these tags are
+     one static card. On Cloudflare, worker/index.js overrides the title and
+     description per invite; the image is the same for all of them. -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Hear Me Out">
 <meta property="og:title" content="You’re invited to Hear Me Out">
@@ -26,7 +27,7 @@
 
 <style>
 /* ============================================================
-   HEAR ME OUT — invite / not-found page (served via GH Pages 404.html)
+   HEAR ME OUT — invite / not-found page (the host's 404.html fallback)
    Self-contained: brand display font, app icon, and starfield bg
    are embedded as data URIs. Tokens mirror index.html.
    ============================================================ */
@@ -395,7 +396,7 @@ footer .copyright {
   var SUPABASE_KEY = 'sb_publishable_Jsk5aLowVIYNmAzlORaqOA_m2No2UHO';
   var PREVIEW_TIMEOUT_MS = 6000;
 
-  // GitHub Pages serves this file for every unknown path; /i/<CODE> is
+  // The host serves this file for every unknown path; /i/<CODE> is
   // handled client-side. Codes are 6 chars from a restricted alphabet —
   // anything else renders the not-found page. Everything that comes back
   // from the network reaches the DOM via textContent / a validated URL

@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hmo-landing",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-09-21",
+  // The site files live in the repo root (GitHub Pages serves them from there
+  // until the domain moves), so the build copies an explicit list of them
+  // into dist/. A new static file has to be added to "build" in package.json.
+  // (watch_dir can't be the root: dist/ is inside it and the build would loop,
+  // so restart `npm run dev` after editing a page.)
+  "build": { "command": "npm run build", "watch_dir": "worker" },
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    // Unknown paths get /404.html with status 404, same as GitHub Pages did.
+    "not_found_handling": "404-page",
+    // Everything else is served straight from the edge without waking the Worker.
+    "run_worker_first": ["/i/*", "/.well-known/*"]
+  },
+  "observability": { "enabled": true }
+  // Custom domain is added once the hearmeout.social zone is active on
+  // Cloudflare (docs/cloudflare-migration.md, step 5):
+  // "routes": [
+  //   { "pattern": "hearmeout.social", "custom_domain": true },
+  //   { "pattern": "www.hearmeout.social", "custom_domain": true }
+  // ]
+}

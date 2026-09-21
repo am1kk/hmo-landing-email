@@ -13,6 +13,7 @@
 // Same Supabase project + publishable (anon) key that 404.html ships with.
 const SUPABASE_URL = 'https://oxownhqtqwqdjvhqecoz.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_Jsk5aLowVIYNmAzlORaqOA_m2No2UHO';
+const SITE_ORIGIN = 'https://hearmeout.social';
 const PREVIEW_TIMEOUT_MS = 3000;
 const PREVIEW_TTL_S = 300;
 const UNKNOWN_CODE_TTL_S = 60;
@@ -58,8 +59,22 @@ async function serveInvite(request, env, ctx, url, code) {
   });
   const response = new Response(page.body, { status: 200, headers });
 
+  // The page's image tags are absolute URLs on the production origin. Serve
+  // the image from whatever origin answered (workers.dev before the domain
+  // move), so the card never depends on another host. No-op in production.
+  const rewriter = new HTMLRewriter().on(
+    'meta[property="og:image"], meta[property="og:image:secure_url"], meta[name="twitter:image"]',
+    {
+      element(el) {
+        const src = el.getAttribute('content') || '';
+        if (src.startsWith(SITE_ORIGIN + '/')) {
+          el.setAttribute('content', url.origin + src.slice(SITE_ORIGIN.length));
+        }
+      },
+    });
+
   // RPC failed or the code is unknown: the static card already in the page.
-  if (!preview || typeof preview !== 'object') return response;
+  if (!preview || typeof preview !== 'object') return rewriter.transform(response);
 
   const username = cleanText(preview.inviter_username, 40).replace(/^@+/, '');
   const groupName = cleanText(preview.group_name, 80);
@@ -75,7 +90,7 @@ async function serveInvite(request, env, ctx, url, code) {
   const setContent = (value) => ({
     element(el) { el.setAttribute('content', value); },
   });
-  return new HTMLRewriter()
+  return rewriter
     .on('title', { element(el) { el.setInnerContent(title + ' — Hear Me Out'); } })
     .on('meta[property="og:title"]', setContent(title))
     .on('meta[name="twitter:title"]', setContent(title))

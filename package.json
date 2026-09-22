@@ -2,7 +2,7 @@
   "name": "hmo-landing",
   "private": true,
   "scripts": {
-    "build": "rm -rf dist && mkdir -p dist && cp -R index.html 404.html privacy.html terms.html legal.css og-preview.jpg .well-known dist/",
+    "build": "rm -rf dist && mkdir -p dist && cp -R index.html 404.html privacy.html terms.html otp-test.html legal.css og-preview.jpg .well-known dist/",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy"
   },

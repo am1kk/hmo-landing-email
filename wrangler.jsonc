@@ -17,11 +17,14 @@
     // Everything else is served straight from the edge without waking the Worker.
     "run_worker_first": ["/i/*", "/.well-known/*"]
   },
-  "observability": { "enabled": true }
-  // Custom domain is added once the hearmeout.social zone is active on
-  // Cloudflare (docs/cloudflare-migration.md, step 5):
-  // "routes": [
-  //   { "pattern": "hearmeout.social", "custom_domain": true },
-  //   { "pattern": "www.hearmeout.social", "custom_domain": true }
-  // ]
+  "observability": { "enabled": true },
+  // The site's own domain. Until these are attached, hearmeout.social is
+  // GitHub Pages, which answers /i/<CODE> with a 404, and Telegram shows no
+  // preview for it. The first deploy replaces the zone's GitHub Pages A / www
+  // records with the Worker (wrangler overrides conflicting DNS records when
+  // it runs non-interactively, as in CI); the mail records are untouched.
+  "routes": [
+    { "pattern": "hearmeout.social", "custom_domain": true },
+    { "pattern": "www.hearmeout.social", "custom_domain": true }
+  ]
 }

@@ -21,7 +21,7 @@ The site runs on Cloudflare: static files are served by the Workers assets bindi
 
 Every other unknown path gets `404.html` with status 404.
 
-> **Transition (as of 2026-09-21).** The Worker is live at `https://hmo-landing.lonely-labs-landing.workers.dev`, but `hearmeout.social` itself is still served by GitHub Pages until the nameserver move to Cloudflare completes. Until then a push to `main` updates both, and `CNAME` / `.nojekyll` have to stay. Status and the remaining steps: `docs/cloudflare-migration.md`.
+> **Transition (as of 2026-10-12).** The nameservers have moved to Cloudflare, and `wrangler.jsonc` now attaches `hearmeout.social` and `www.hearmeout.social` to the Worker as custom domains. GitHub Pages is no longer in the request path, but it is not retired yet: `CNAME` / `.nojekyll` and the Pages setting stay until the post-move checks pass. Status and the remaining steps: `docs/cloudflare-migration.md`.
 
 ## Deploying
 

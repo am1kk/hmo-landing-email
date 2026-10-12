@@ -7,11 +7,16 @@ Done:
 - Steps 1, 2, 4 and 6. The Worker is live at `https://hmo-landing.lonely-labs-landing.workers.dev`, the step 4 checklist passes there, and per-invite cards (with the image) were confirmed in Telegram and iMessage. Pushes to `main` deploy through `.github/workflows/deploy.yml`; the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repo secrets are set.
 - Step 5, first half. The `hearmeout.social` zone exists in Cloudflare (Free plan) with every record copied from Namecheap, all DNS only: the four GitHub Pages `A` records, `www` CNAME, both `MX`, SPF `TXT`, DKIM `TXT` (`privateemail._domainkey`), the `mail` / `autodiscover` / `autoconfig` CNAMEs, the `_autodiscover._tcp` SRV and the GitHub Pages challenge `TXT`. Namecheap nameservers were changed to `ajay.ns.cloudflare.com` / `maeve.ns.cloudflare.com`.
 
-Still open (step 5, second half):
+Step 5, second half (2026-10-12):
 
-- Wait for the `.social` registry to pick up the new nameservers and for Cloudflare to mark the zone Active. Until then GitHub Pages keeps serving `hearmeout.social`, so `/i/<CODE>` there is still a 404 without a Telegram preview.
-- Then: uncomment `routes` in `wrangler.jsonc`, delete the GitHub Pages `A` / `www` records from the Cloudflare zone (a custom domain can't be attached while they exist), push, re-run the checklist against `https://hearmeout.social`, check Apple's AASA CDN copy, and retire GitHub Pages (`CNAME`, `.nojekyll`, the Pages setting in the repo, the challenge `TXT`). The mail records must stay DNS only.
-- Afterwards, update `README.md` (drop the transition note) and the GitHub Pages wording in the `404.html` comments.
+- The `.social` registry now delegates to `ajay` / `maeve`, so the zone answers from Cloudflare. It still pointed at GitHub Pages, though, and invite links shared from the app (`https://hearmeout.social/i/<CODE>`) kept getting a 404 and no Telegram preview.
+- `routes` in `wrangler.jsonc` is uncommented. No manual DNS cleanup is needed first: when `wrangler deploy` runs non-interactively (the GitHub Action), it overrides DNS records that conflict with a custom domain, which replaces the GitHub Pages `A` / `www` records. A local `npm run deploy` asks first; answer yes. The CI token was created with account-level permissions only (step 6), and attaching a custom domain most likely needs zone-level access to `hearmeout.social` as well (Workers Routes Edit and DNS Edit, as in the "Edit Cloudflare Workers" token template). If the Action fails on the custom-domain step, add those permissions to the token or deploy once by hand.
+
+Still open:
+
+- After the deploy, re-run the step 4 checklist against `https://hearmeout.social`, check Apple's AASA CDN copy, and send a real invite link to `@WebpageBot` in Telegram. Telegram cached the failed preview for links it already saw.
+- Then retire GitHub Pages (`CNAME`, `.nojekyll`, the Pages setting in the repo, the challenge `TXT`). The mail records must stay DNS only.
+- Afterwards, update `README.md` (drop the transition note).
 
 How the implementation differs from the plan below:
 

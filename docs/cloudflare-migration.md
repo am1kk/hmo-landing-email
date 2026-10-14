@@ -4,7 +4,7 @@
 
 `hearmeout.social` and `www` are custom domains of the `hmo-landing` Worker; GitHub Pages is retired (`CNAME`, `.nojekyll` and the Pages site removed). The step 4 checklist passes on the real domain, Apple's AASA CDN copy is current, and the mail records (MX, SPF, DKIM, CNAMEs, SRV) stayed DNS only in the Cloudflare zone. Timeline: Worker deployed and secrets set 2026-09-21, zone created and nameservers moved the same day, cutover 2026-10-14.
 
-Always Use HTTPS is on (http:// answers 301 to https://). Loose end (optional): delete the `_github-pages-challenge-am1kk` TXT record.
+Always Use HTTPS is on (http:// answers 301 to https://). Per-invite previews with the image confirmed in Telegram and iMessage on the real domain. Loose end (optional): delete the `_github-pages-challenge-am1kk` TXT record.
 
 How the implementation differs from the plan below:
 

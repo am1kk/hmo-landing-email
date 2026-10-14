@@ -17,11 +17,9 @@
     // Everything else is served straight from the edge without waking the Worker.
     "run_worker_first": ["/i/*", "/.well-known/*"]
   },
-  "observability": { "enabled": true }
-  // Custom domain is added once the hearmeout.social zone is active on
-  // Cloudflare (docs/cloudflare-migration.md, step 5):
-  // "routes": [
-  //   { "pattern": "hearmeout.social", "custom_domain": true },
-  //   { "pattern": "www.hearmeout.social", "custom_domain": true }
-  // ]
+  "observability": { "enabled": true },
+  "routes": [
+    { "pattern": "hearmeout.social", "custom_domain": true },
+    { "pattern": "www.hearmeout.social", "custom_domain": true }
+  ]
 }

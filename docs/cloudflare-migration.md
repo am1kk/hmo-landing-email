@@ -1,17 +1,10 @@
 # Move hearmeout.social to Cloudflare Workers (dynamic invite previews)
 
-## Status (2026-09-21)
+## Status: done (2026-10-14)
 
-Done:
+`hearmeout.social` and `www` are custom domains of the `hmo-landing` Worker; GitHub Pages is retired (`CNAME`, `.nojekyll` and the Pages site removed). The step 4 checklist passes on the real domain, Apple's AASA CDN copy is current, and the mail records (MX, SPF, DKIM, CNAMEs, SRV) stayed DNS only in the Cloudflare zone. Timeline: Worker deployed and secrets set 2026-09-21, zone created and nameservers moved the same day, cutover 2026-10-14.
 
-- Steps 1, 2, 4 and 6. The Worker is live at `https://hmo-landing.lonely-labs-landing.workers.dev`, the step 4 checklist passes there, and per-invite cards (with the image) were confirmed in Telegram and iMessage. Pushes to `main` deploy through `.github/workflows/deploy.yml`; the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repo secrets are set.
-- Step 5, first half. The `hearmeout.social` zone exists in Cloudflare (Free plan) with every record copied from Namecheap, all DNS only: the four GitHub Pages `A` records, `www` CNAME, both `MX`, SPF `TXT`, DKIM `TXT` (`privateemail._domainkey`), the `mail` / `autodiscover` / `autoconfig` CNAMEs, the `_autodiscover._tcp` SRV and the GitHub Pages challenge `TXT`. Namecheap nameservers were changed to `ajay.ns.cloudflare.com` / `maeve.ns.cloudflare.com`.
-
-Still open (step 5, second half):
-
-- Wait for the `.social` registry to pick up the new nameservers and for Cloudflare to mark the zone Active. Until then GitHub Pages keeps serving `hearmeout.social`, so `/i/<CODE>` there is still a 404 without a Telegram preview.
-- Then: uncomment `routes` in `wrangler.jsonc`, delete the GitHub Pages `A` / `www` records from the Cloudflare zone (a custom domain can't be attached while they exist), push, re-run the checklist against `https://hearmeout.social`, check Apple's AASA CDN copy, and retire GitHub Pages (`CNAME`, `.nojekyll`, the Pages setting in the repo, the challenge `TXT`). The mail records must stay DNS only.
-- Afterwards, update `README.md` (drop the transition note) and the GitHub Pages wording in the `404.html` comments.
+Loose ends (optional): turn on **Always Use HTTPS** in the zone's SSL/TLS → Edge Certificates (http:// currently answers 200 instead of redirecting); delete the `_github-pages-challenge-am1kk` TXT record.
 
 How the implementation differs from the plan below:
 

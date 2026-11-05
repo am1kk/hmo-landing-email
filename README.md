@@ -44,6 +44,23 @@ All preview tags are static HTML in the `<head>` of `index.html` and `404.html`;
 
 Messengers cache previews hard, including a failed image fetch, keyed by URL. When the image changes, bump the version in the tags (`og-preview.jpg?v=2` → `?v=3`) or rename the file. To re-test a link a messenger has already seen, add a throwaway query (`/i/D7PDR9?x=1`), or send the link to `@WebpageBot` in Telegram.
 
+## Analytics
+
+The invite page (`/i/<CODE>` in `404.html`) sends named events to Mixpanel, the same project as the iOS app, loaded with Mixpanel's async snippet from `cdn.mxpnl.com`. The not-found page sends nothing. The project token sits in `404.html` next to the Supabase key; it is public by design (it can only write events). Naming follows the app's tracking plan (`AnalyticsEvent.swift` in hmo-ios). Every event carries `invite_code`, plus the super properties `platform: "web"` and `build_environment` (`release` on `hearmeout.social` and `www.hearmeout.social`, `debug` everywhere else, including `*.workers.dev` and previews). No page-view tracking, no autocapture, no PII.
+
+| Event | When |
+|---|---|
+| `invite_page_viewed` | An invite path opens, before the preview fetch. |
+| `invite_preview_loaded` | The preview fetch finished; `result`: `valid`, `unknown` (no such code) or `failed` (error or timeout). |
+| `invite_get_app_tapped` | "Get the app & unlock" tapped. |
+| `invite_open_app_tapped` | "Open your invite" tapped (tries `hmo://`). |
+| `invite_store_fallback_redirected` | The app didn't open, so the page sent the user to the App Store. |
+| `invite_code_copied` | "Copy code" succeeded. |
+
+If an ad blocker stops the Mixpanel script, the page works as before and no events are sent.
+
+These are web-only events. Accepting an invite happens in the app (`onboarding_invite_code_accepted`, `onboarding_invite_join_tapped`), and those events carry no `invite_code` and a different `distinct_id`, so Mixpanel shows a web funnel (viewed → preview `valid` → open/get-app tapped, per `invite_code`) and a separate app funnel that can't be joined. And since `/i/*` is a universal link, people who already have the app usually skip this page: web counts mostly cover visitors without the app.
+
 ## DNS and email
 
 DNS for `hearmeout.social` lives in the Cloudflare zone (registrar: Namecheap). The domain also carries Namecheap Private Email: the `MX`, SPF and DKIM `TXT`, `mail` / `autodiscover` / `autoconfig` CNAME and `_autodiscover._tcp` SRV records must stay, and must stay **DNS only** (grey cloud).

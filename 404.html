@@ -382,6 +382,14 @@ footer .copyright {
   </nav>
 </footer>
 
+<!-- Mixpanel's official async loader (docs.mixpanel.com), invite pages only. Its own
+     block because the snippet isn't strict-mode safe. If the CDN is blocked the stub just
+     queues calls and the page works as before. -->
+<script>
+if (/^\/i\/[A-Za-z2-9]{6}\/?$/.test(window.location.pathname)) {
+(function (f, b) { if (!b.__SV) { var e, g, i, h; window.mixpanel = b; b._i = []; b.init = function (e, f, c) { function g(a, d) { var b = d.split("."); 2 == b.length && ((a = a[b[0]]), (d = b[1])); a[d] = function () { a.push([d].concat(Array.prototype.slice.call(arguments, 0))); }; } var a = b; "undefined" !== typeof c ? (a = b[c] = []) : (c = "mixpanel"); a.people = a.people || []; a.toString = function (a) { var d = "mixpanel"; "mixpanel" !== c && (d += "." + c); a || (d += " (stub)"); return d; }; a.people.toString = function () { return a.toString(1) + ".people (stub)"; }; i = "disable time_event track track_pageview track_links track_forms track_with_groups add_group set_group remove_group register register_once alias unregister identify name_tag set_config reset opt_in_tracking opt_out_tracking has_opted_in_tracking has_opted_out_tracking clear_opt_in_out_tracking start_batch_senders people.set people.set_once people.unset people.increment people.append people.union people.track_charge people.clear_charges people.delete_user people.remove".split( " "); for (h = 0; h < i.length; h++) g(a, i[h]); var j = "set set_once union unset remove delete".split(" "); a.get_group = function () { function b(c) { d[c] = function () { call2_args = arguments; call2 = [c].concat(Array.prototype.slice.call(call2_args, 0)); a.push([e, call2]); }; } for ( var d = {}, e = ["get_group"].concat( Array.prototype.slice.call(arguments, 0)), c = 0; c < j.length; c++) b(j[c]); return d; }; b._i.push([e, f, c]); }; b.__SV = 1.2; e = f.createElement("script"); e.type = "text/javascript"; e.async = !0; e.src = "undefined" !== typeof MIXPANEL_CUSTOM_LIB_URL ? MIXPANEL_CUSTOM_LIB_URL : "file:" === f.location.protocol && "//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\/\//) ? "https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js" : "//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js"; g = f.getElementsByTagName("script")[0]; g.parentNode.insertBefore(e, g); } })(document, window.mixpanel || []);
+}
+</script>
 <script>
 (function () {
   'use strict';
@@ -395,6 +403,10 @@ footer .copyright {
   var SUPABASE_URL = 'https://oxownhqtqwqdjvhqecoz.supabase.co';
   var SUPABASE_KEY = 'sb_publishable_Jsk5aLowVIYNmAzlORaqOA_m2No2UHO';
   var PREVIEW_TIMEOUT_MS = 6000;
+
+  // Mixpanel project token, same project as the iOS app. Not a secret: it ships
+  // in every client and can only write events.
+  var MIXPANEL_TOKEN = 'd210c9972ca45a12b80cf624b92f57cc';
 
   // The host serves this file for every unknown path; /i/<CODE> is
   // handled client-side. Codes are 6 chars from a restricted alphabet —
@@ -417,6 +429,34 @@ footer .copyright {
   $('open-app').setAttribute('href', 'hmo://invite/' + code);
   $('store-cta').setAttribute('href', APP_STORE_URL);
   $('invite').hidden = false;
+
+  // ---------- analytics ----------
+  // Named events only (tracking plan: hmo-ios AnalyticsEvent.swift). sendBeacon
+  // and no batching, so an event fired right before navigating away still goes
+  // out. Analytics must never break the page, hence the try/catch.
+
+  try {
+    window.mixpanel.init(MIXPANEL_TOKEN, {
+      track_pageview: false,
+      autocapture: false,
+      api_transport: 'sendBeacon',
+      batch_requests: false
+    });
+    window.mixpanel.register({
+      platform: 'web',
+      build_environment: /^(www\.)?hearmeout\.social$/.test(window.location.hostname) ? 'release' : 'debug'
+    });
+  } catch (err) { /* no analytics */ }
+
+  function track(name, props) {
+    try {
+      var properties = { invite_code: code };
+      for (var key in props) properties[key] = props[key];
+      window.mixpanel.track(name, properties);
+    } catch (err) { /* no analytics */ }
+  }
+
+  track('invite_page_viewed');
 
   // ---------- personalised hero ----------
 
@@ -499,8 +539,14 @@ footer .copyright {
   }
 
   loadPreview().then(
-    function (preview) { showHero(preview, preview === null); },
-    function () { showHero(null, false); }
+    function (preview) {
+      track('invite_preview_loaded', { result: preview && typeof preview === 'object' ? 'valid' : preview === null ? 'unknown' : 'failed' });
+      showHero(preview, preview === null);
+    },
+    function () {
+      track('invite_preview_loaded', { result: 'failed' });
+      showHero(null, false);
+    }
   );
 
   // ---------- "Open your invite": app if installed, App Store otherwise ----------
@@ -513,6 +559,7 @@ footer .copyright {
     var startedAt = Date.now();
     var fallback = setTimeout(function () {
       if (document.visibilityState === 'visible' && Date.now() - startedAt < 3000) {
+        track('invite_store_fallback_redirected');
         window.location.href = APP_STORE_URL;
       }
     }, 1500);
@@ -521,8 +568,11 @@ footer .copyright {
     };
     document.addEventListener('visibilitychange', cancel, { once: true });
     window.addEventListener('pagehide', function () { clearTimeout(fallback); }, { once: true });
+    track('invite_open_app_tapped');
     window.location.href = 'hmo://invite/' + code;
   });
+
+  $('store-cta').addEventListener('click', function () { track('invite_get_app_tapped'); });
 
   // ---------- copy code ----------
 
@@ -530,6 +580,7 @@ footer .copyright {
   var resetTimer = null;
 
   function flash(label, ok) {
+    if (ok) track('invite_code_copied');
     copyBtn.textContent = label;
     copyBtn.classList.toggle('copied', ok);
     if (resetTimer) clearTimeout(resetTimer);

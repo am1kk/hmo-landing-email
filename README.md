@@ -46,7 +46,7 @@ Messengers cache previews hard, including a failed image fetch, keyed by URL. Wh
 
 ## Analytics
 
-The invite page (`/i/<CODE>` in `404.html`) sends named events to Mixpanel, the same project as the iOS app, loaded with Mixpanel's async snippet from `cdn.mxpnl.com`. The not-found page sends nothing. The project token sits in `404.html` next to the Supabase key; it is public by design (it can only write events). Naming follows the app's tracking plan (`AnalyticsEvent.swift` in hmo-ios). Every event carries `invite_code`, plus the super properties `platform: "web"` and `build_environment` (`debug` on localhost, `release` otherwise). No page-view tracking, no autocapture, no PII.
+The invite page (`/i/<CODE>` in `404.html`) sends named events to Mixpanel, the same project as the iOS app, loaded with Mixpanel's async snippet from `cdn.mxpnl.com`. The not-found page sends nothing. The project token sits in `404.html` next to the Supabase key; it is public by design (it can only write events). Naming follows the app's tracking plan (`AnalyticsEvent.swift` in hmo-ios). Every event carries `invite_code`, plus the super properties `platform: "web"` and `build_environment` (`release` on `hearmeout.social` and `www.hearmeout.social`, `debug` everywhere else, including `*.workers.dev` and previews). No page-view tracking, no autocapture, no PII.
 
 | Event | When |
 |---|---|
@@ -58,6 +58,8 @@ The invite page (`/i/<CODE>` in `404.html`) sends named events to Mixpanel, the 
 | `invite_code_copied` | "Copy code" succeeded. |
 
 If an ad blocker stops the Mixpanel script, the page works as before and no events are sent.
+
+These are web-only events. Accepting an invite happens in the app (`onboarding_invite_code_accepted`, `onboarding_invite_join_tapped`), and those events carry no `invite_code` and a different `distinct_id`, so Mixpanel shows a web funnel (viewed → preview `valid` → open/get-app tapped, per `invite_code`) and a separate app funnel that can't be joined. And since `/i/*` is a universal link, people who already have the app usually skip this page: web counts mostly cover visitors without the app.
 
 ## DNS and email
 

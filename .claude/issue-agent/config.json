@@ -1,0 +1,17 @@
+{
+  "repo": "am1kk/hmo-landing-email",
+  "prefix": "landing",
+  "trusted_authors": ["am1kk"],
+  "max_parallel": 5,
+  "worktree_setup": "npm ci --silent",
+  "routes": [
+    {"default": true, "pipeline": ["conduct"]}
+  ],
+  "stages": {
+    "conduct": {
+      "agent": "conductor",
+      "roster": ["researcher", "implementer", "reviewer"],
+      "prompt": "conduct.md"
+    }
+  }
+}

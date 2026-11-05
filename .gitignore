@@ -3,3 +3,7 @@ node_modules/
 .wrangler/
 .dev.vars
 dist/
+
+# Issue agent
+.claude/worktrees/
+.agent-artifacts/

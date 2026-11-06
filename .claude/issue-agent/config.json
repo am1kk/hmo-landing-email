@@ -10,7 +10,7 @@
   "stages": {
     "conduct": {
       "agent": "conductor",
-      "roster": ["researcher", "implementer", "reviewer"],
+      "roster": ["researcher", "implementer", "reviewer", "planner"],
       "prompt": "conduct.md"
     }
   }

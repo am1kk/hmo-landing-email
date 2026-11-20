@@ -347,7 +347,8 @@ footer .copyright {
     </div>
     <div class="q">
       <span class="q-label" id="q-label" data-t="question" hidden>Today&rsquo;s question:</span>
-      <p class="question" id="question" hidden></p>
+      <!-- lang="en": get_invite_preview returns the question in English only; drop it once the RPC returns translated questions (README "Languages"). -->
+      <p class="question" id="question" lang="en" hidden></p>
       <p class="q-sub" id="q-sub" data-t="waiting">Your friends&rsquo; answers are already waiting. &#128064;</p>
     </div>
   </section>
@@ -434,7 +435,7 @@ if (/^\/i\/[A-Za-z2-9]{6}\/?$/.test(window.location.pathname)) {
       copyFailed: 'Copy failed'
     },
     'pt-BR': {
-      friend: 'Um amigo',
+      friend: 'Alguém',
       invitedYouTo: 'te convidou pro grupo',
       theirGroup: 'da galera',
       titleGroup: 'da galera',
@@ -452,7 +453,7 @@ if (/^\/i\/[A-Za-z2-9]{6}\/?$/.test(window.location.pathname)) {
       copyFailed: 'Não deu pra copiar'
     },
     'es-419': {
-      friend: 'Un amigo',
+      friend: 'Alguien',
       invitedYouTo: 'te invitó a',
       theirGroup: 'su grupo',
       titleGroup: 'su grupo',
@@ -470,7 +471,7 @@ if (/^\/i\/[A-Za-z2-9]{6}\/?$/.test(window.location.pathname)) {
       copyFailed: 'No se pudo copiar'
     },
     fr: {
-      friend: 'Un ami',
+      friend: 'Quelqu’un',
       invitedYouTo: 't’invite dans',
       theirGroup: 'son groupe',
       titleGroup: 'son groupe',
@@ -478,7 +479,7 @@ if (/^\/i\/[A-Za-z2-9]{6}\/?$/.test(window.location.pathname)) {
       docTitle: 'T’as une invitation — Hear Me Out',
       question: 'Question du jour\u00a0:',
       waiting: 'Les réponses de tes amis t’attendent déjà. 👀',
-      unknown: 'Invitation introuvable — vérifie le lien avec la personne qui te l’a envoyé. L’app reste à un clic.',
+      unknown: 'Invitation introuvable — vérifie le lien avec la personne qui te l’a envoyé. L’app est à portée de main.',
       cta: 'Installe l’app et débloque',
       haveApp: 'T’as déjà l’app\u00a0?',
       openInvite: 'Ouvre ton invitation',

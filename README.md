@@ -16,7 +16,7 @@ The website for Hear Me Out, `hearmeout.social`: the landing page, the invite pa
 
 The site runs on Cloudflare: static files are served by the Workers assets binding, and the Worker handles two path families.
 
-- `/i/<CODE>` answers **200** with the invite page and writes that invite's title and description into the link-preview tags (from the Supabase RPC `get_invite_preview`, cached 5 min). Without the Worker the page would be served with status 404, and Telegram builds no preview from a 404. The preview image is the same static `og-preview.jpg` for every invite.
+- `/i/<CODE>` answers **200** with the invite page and writes that invite's title and description into the link-preview tags (from the Supabase RPC `get_invite_preview`, cached 5 min), in the request's language (see [Languages](#languages)). Without the Worker the page would be served with status 404, and Telegram builds no preview from a 404. The preview image is the same static `og-preview.jpg` for every invite.
 - `/.well-known/apple-app-site-association` is re-served as `application/json` (the file has no extension).
 
 Every other unknown path gets `404.html` with status 404.
@@ -34,15 +34,27 @@ npm install
 npm run dev        # http://localhost:8787
 ```
 
-`/i/D7PDR9` is a real invite code for testing; `/i/ZZZZZZ` exercises the unknown-code path.
+No invite code resolves right now: `D7PDR9`, the old test code, returns `null` from `get_invite_preview` (checked 2026-11-20), so every code shows the generic invite, like the unknown-code path `/i/ZZZZZZ`. Pick the language with a header (`curl -H 'Accept-Language: fr' localhost:8787/i/ZZZZZZ`), or in a Chrome with its own profile (`open -na "Google Chrome" --args --user-data-dir=/tmp/hmo-fr --accept-lang=fr`).
+
+To see a personal invite, run a stand-in for the RPC on another port and point `SUPABASE_URL` in `worker/index.js` and `404.html` at it; don't commit that. It answers `POST /rest/v1/rpc/get_invite_preview` with `null` or a preview object (`inviter_username`, `group_name`, `question`, and `inviter_avatar_url` as `avatars/<path>.jpg`, served under `/storage/v1/object/public/`), with CORS headers for the page's own request (`Access-Control-Allow-Origin: *`; allow `apikey, authorization, content-type` on `OPTIONS`). The Worker caches each code's answer for 5 minutes, so use a new code after changing an answer.
 
 `wrangler dev` and `wrangler deploy` first run `npm run build`, which copies the site files into `dist/` (git-ignored). **The copy is an explicit list in `package.json`: a new static file is not served by Cloudflare until it is added there.** Restart `npm run dev` after editing a page; only `worker/` is watched.
 
 ## Link previews
 
-All preview tags are static HTML in the `<head>` of `index.html` and `404.html`; crawlers don't run JavaScript. The Worker only overrides title and description for a valid invite.
+All preview tags are static HTML in the `<head>` of `index.html` and `404.html`; crawlers don't run JavaScript. On `/i/<CODE>` the Worker overrides title and description: the invite's own for a valid code, the generic card in the request's language otherwise.
 
-Messengers cache previews hard, including a failed image fetch, keyed by URL. When the image changes, bump the version in the tags (`og-preview.jpg?v=2` → `?v=3`) or rename the file. To re-test a link a messenger has already seen, add a throwaway query (`/i/D7PDR9?x=1`), or send the link to `@WebpageBot` in Telegram.
+Messengers cache previews hard, including a failed image fetch, keyed by URL. When the image changes, bump the version in the tags (`og-preview.jpg?v=2` → `?v=3`) or rename the file. To re-test a link a messenger has already seen, add a throwaway query (`/i/<CODE>?x=1`), or send the link to `@WebpageBot` in Telegram.
+
+## Languages
+
+The invite page and its link preview come in the app's four languages: English, Brazilian Portuguese (`pt-BR`), Latin American Spanish (`es-419`) and French (`fr`).
+
+- **The rule.** The Worker picks one language per `/i/<CODE>` response from `Accept-Language`: the first tag, highest `q` first (`q=0` skipped), whose primary subtag is `pt`, `es`, `fr` or `en`. So `pt-PT` gets `pt-BR`, every Spanish `es-419`, every French `fr`; anything else, or no header, gets English. Same mapping as the app's `AppLanguage.swift`. The Worker writes it into `<html lang>` and `Content-Language` (with `Vary: Accept-Language`) and translates the preview tags and the footer links; the page's script reads `<html lang>` and translates the invite before showing it.
+- **Who sees which language.** The page is in the visitor's own language. A preview card is built once, by whoever fetches the link: iMessage and WhatsApp fetch it on the sender's phone, so the card is in the inviter's language; Telegram's servers ask for `en-US` and Slack's for nothing, so those cards are English.
+- **Not translated:** today's question (`get_invite_preview` returns it in English only), `og-preview.jpg` and its alt text, the not-found and "Turn on JavaScript" pages (served without the Worker), the landing page and the legal pages.
+- **Where the strings live:** `COPY` in `worker/index.js` (preview tags, footer) and `COPY` in `404.html` (the invite page). The keys both have (`friend`, `invitedYouTo`, `titleGroup`, `question`, `waiting`) must match. Wording follows the app's glossary, hmo-ios `app_docs/localization-glossary.md`.
+- **Adding a language:** add its primary subtag to `LANGUAGES` in `worker/index.js`, an entry under its id (e.g. `de`) to both `COPY` tables, and a line here. Check that the green button still fits on one line at 360 px.
 
 ## Analytics
 

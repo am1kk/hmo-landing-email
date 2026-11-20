@@ -302,6 +302,7 @@ footer {
 footer .brand-mini {
   font: 400 12px/1 var(--hmo-font-display);
   color: rgba(255,255,255,0.4);
+  white-space: nowrap; /* the translated links are longer; let the nav wrap, not the brand */
 }
 footer nav {
   display: flex;
@@ -339,23 +340,23 @@ footer .copyright {
   <section class="hero" id="hero" data-state="loading" aria-live="polite">
     <div class="who" id="who-personal" hidden>
       <img class="avatar" id="avatar" alt="" hidden>
-      <h1><span id="inviter"></span> invited you to <span class="group" id="group"></span></h1>
+      <h1><span id="inviter"></span> <span data-t="invitedYouTo">invited you to</span> <span class="group" id="group"></span></h1>
     </div>
     <div class="who" id="who-generic" hidden>
-      <h1>You&rsquo;re invited.</h1>
+      <h1 data-t="youreInvited">You&rsquo;re invited.</h1>
     </div>
     <div class="q">
-      <span class="q-label" id="q-label" hidden>Today&rsquo;s question:</span>
+      <span class="q-label" id="q-label" data-t="question" hidden>Today&rsquo;s question:</span>
       <p class="question" id="question" hidden></p>
-      <p class="q-sub" id="q-sub">Your friends&rsquo; answers are already waiting. &#128064;</p>
+      <p class="q-sub" id="q-sub" data-t="waiting">Your friends&rsquo; answers are already waiting. &#128064;</p>
     </div>
   </section>
-  <a class="cta" id="store-cta" href="https://apps.apple.com/ua/app/hear-me-out-friends-hot-takes/id6769892992">Get the app &amp; unlock</a>
-  <p class="alt">Already have the app? <a id="open-app" href="/">Open your invite</a></p>
+  <a class="cta" id="store-cta" data-t="cta" href="https://apps.apple.com/ua/app/hear-me-out-friends-hot-takes/id6769892992">Get the app &amp; unlock</a>
+  <p class="alt"><span data-t="haveApp">Already have the app?</span> <a id="open-app" data-t="openInvite" href="/">Open your invite</a></p>
   <div class="code-card">
-    <span class="code-label">Your invite code</span>
+    <span class="code-label" data-t="codeLabel">Your invite code</span>
     <div class="code" id="code"></div>
-    <button type="button" class="copy" id="copy">Copy code</button>
+    <button type="button" class="copy" id="copy" data-t="copy">Copy code</button>
   </div>
 </main>
 
@@ -408,6 +409,86 @@ if (/^\/i\/[A-Za-z2-9]{6}\/?$/.test(window.location.pathname)) {
   // in every client and can only write events.
   var MIXPANEL_TOKEN = 'd210c9972ca45a12b80cf624b92f57cc';
 
+  // Invite page copy, keyed by the <html lang> the Worker writes (from
+  // Accept-Language; README "Languages"). Keep the shared keys (friend,
+  // invitedYouTo, titleGroup, question, waiting) in sync with COPY in
+  // worker/index.js, which also translates the footer. English is the
+  // fallback and matches the markup below.
+  var COPY = {
+    en: {
+      friend: 'A friend',
+      invitedYouTo: 'invited you to',
+      theirGroup: 'their group',
+      titleGroup: 'Hear Me Out',
+      youreInvited: 'You’re invited.',
+      docTitle: 'You’re invited — Hear Me Out',
+      question: 'Today’s question:',
+      waiting: 'Your friends’ answers are already waiting. 👀',
+      unknown: 'We couldn’t find this invite — double-check the link with whoever sent it. The app is still one tap away.',
+      cta: 'Get the app & unlock',
+      haveApp: 'Already have the app?',
+      openInvite: 'Open your invite',
+      codeLabel: 'Your invite code',
+      copy: 'Copy code',
+      copied: 'Copied ✓',
+      copyFailed: 'Copy failed'
+    },
+    'pt-BR': {
+      friend: 'Um amigo',
+      invitedYouTo: 'te convidou pro grupo',
+      theirGroup: 'da galera',
+      titleGroup: 'da galera',
+      youreInvited: 'Chegou seu convite.',
+      docTitle: 'Chegou seu convite — Hear Me Out',
+      question: 'Pergunta de hoje:',
+      waiting: 'As respostas dos seus amigos já estão te esperando. 👀',
+      unknown: 'Não achamos esse convite — confere o link com quem te mandou. O app continua a um toque de distância.',
+      cta: 'Baixa o app e libera',
+      haveApp: 'Já tem o app?',
+      openInvite: 'Abre seu convite',
+      codeLabel: 'Seu código de convite',
+      copy: 'Copiar código',
+      copied: 'Copiado ✓',
+      copyFailed: 'Não deu pra copiar'
+    },
+    'es-419': {
+      friend: 'Un amigo',
+      invitedYouTo: 'te invitó a',
+      theirGroup: 'su grupo',
+      titleGroup: 'su grupo',
+      youreInvited: 'Te invitaron.',
+      docTitle: 'Te invitaron — Hear Me Out',
+      question: 'Pregunta de hoy:',
+      waiting: 'Las respuestas de tus amigos ya te están esperando. 👀',
+      unknown: 'No encontramos esta invitación — revisa el link con quien te lo mandó. La app sigue a un toque de distancia.',
+      cta: 'Baja la app y desbloquea',
+      haveApp: '¿Ya tienes la app?',
+      openInvite: 'Abre tu invitación',
+      codeLabel: 'Tu código de invitación',
+      copy: 'Copiar código',
+      copied: 'Copiado ✓',
+      copyFailed: 'No se pudo copiar'
+    },
+    fr: {
+      friend: 'Un ami',
+      invitedYouTo: 't’invite dans',
+      theirGroup: 'son groupe',
+      titleGroup: 'son groupe',
+      youreInvited: 'T’as une invitation.',
+      docTitle: 'T’as une invitation — Hear Me Out',
+      question: 'Question du jour\u00a0:',
+      waiting: 'Les réponses de tes amis t’attendent déjà. 👀',
+      unknown: 'Invitation introuvable — vérifie le lien avec la personne qui te l’a envoyé. L’app reste à un clic.',
+      cta: 'Installe l’app et débloque',
+      haveApp: 'T’as déjà l’app\u00a0?',
+      openInvite: 'Ouvre ton invitation',
+      codeLabel: 'Ton code d’invitation',
+      copy: 'Copier le code',
+      copied: 'Copié ✓',
+      copyFailed: 'Copie ratée'
+    }
+  };
+
   // The host serves this file for every unknown path; /i/<CODE> is
   // handled client-side. Codes are 6 chars from a restricted alphabet —
   // anything else renders the not-found page. Everything that comes back
@@ -424,7 +505,14 @@ if (/^\/i\/[A-Za-z2-9]{6}\/?$/.test(window.location.pathname)) {
   var code = match[1].toUpperCase();
   var $ = function (id) { return document.getElementById(id); };
 
-  document.title = 'You’re invited — Hear Me Out';
+  // Translate before #invite is shown, so English never flashes.
+  var t = COPY[document.documentElement.lang] || COPY.en;
+  var labelled = document.querySelectorAll('[data-t]');
+  for (var i = 0; i < labelled.length; i++) {
+    labelled[i].textContent = t[labelled[i].getAttribute('data-t')];
+  }
+
+  document.title = t.docTitle;
   $('code').textContent = code;
   $('open-app').setAttribute('href', 'hmo://invite/' + code);
   $('store-cta').setAttribute('href', APP_STORE_URL);
@@ -483,8 +571,9 @@ if (/^\/i\/[A-Za-z2-9]{6}\/?$/.test(window.location.pathname)) {
       var groupName = cleanText(preview.group_name, 80);
       var question = cleanText(preview.question, 240);
 
-      $('inviter').textContent = username ? '@' + username : 'A friend';
-      $('group').textContent = groupName || 'their group';
+      var who = username ? '@' + username : t.friend;
+      $('inviter').textContent = who;
+      $('group').textContent = groupName || t.theirGroup;
 
       var src = avatarURL(preview.inviter_avatar_url);
       if (src) {
@@ -502,13 +591,11 @@ if (/^\/i\/[A-Za-z2-9]{6}\/?$/.test(window.location.pathname)) {
       }
 
       $('who-personal').hidden = false;
-      document.title = (username ? '@' + username : 'A friend') + ' invited you to ' +
-        (groupName || 'Hear Me Out') + ' — Hear Me Out';
+      document.title = who + ' ' + t.invitedYouTo + ' ' + (groupName || t.titleGroup) + ' — Hear Me Out';
     } else {
       $('who-generic').hidden = false;
       if (unknownCode) {
-        $('q-sub').textContent =
-          'We couldn’t find this invite — double-check the link with whoever sent it. The app is still one tap away.';
+        $('q-sub').textContent = t.unknown;
       }
     }
 
@@ -585,7 +672,7 @@ if (/^\/i\/[A-Za-z2-9]{6}\/?$/.test(window.location.pathname)) {
     copyBtn.classList.toggle('copied', ok);
     if (resetTimer) clearTimeout(resetTimer);
     resetTimer = setTimeout(function () {
-      copyBtn.textContent = 'Copy code';
+      copyBtn.textContent = t.copy;
       copyBtn.classList.remove('copied');
     }, 1800);
   }
@@ -606,13 +693,13 @@ if (/^\/i\/[A-Za-z2-9]{6}\/?$/.test(window.location.pathname)) {
 
   function copyViaLegacy() {
     var ok = legacyCopy();
-    flash(ok ? 'Copied ✓' : 'Copy failed', ok);
+    flash(ok ? t.copied : t.copyFailed, ok);
   }
 
   copyBtn.addEventListener('click', function () {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(code).then(
-        function () { flash('Copied ✓', true); },
+        function () { flash(t.copied, true); },
         copyViaLegacy
       );
     } else {

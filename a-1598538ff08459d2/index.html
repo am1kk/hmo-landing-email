@@ -1,0 +1,775 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Hear Me Out admin</title>
+<!--
+  The admin page (issue #69): communities, their prompts, and the report queue.
+  One static file, no build step. It signs in like the app (phone code) and
+  holds no permission of its own: every admin_* call and the storage rules
+  are checked on the server (supabase/migrations/20261121120400_community_admin.sql,
+  20261121120500_community_prompts.sql).
+  Reported text is hostile input: data is written with textContent only.
+-->
+<style>
+  :root { color-scheme: light dark; font: 15px/1.45 system-ui, sans-serif; }
+  body { max-width: 62rem; margin: 0 auto; padding: 1rem; }
+  [hidden] { display: none !important; }
+  header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+  h1 { font-size: 1.3rem; }
+  h2 { margin-top: 2.5rem; }
+  label { display: block; margin-top: .8rem; font-weight: 600; }
+  input, select, textarea { display: block; font: inherit; padding: .4rem; width: 100%; max-width: 26rem; box-sizing: border-box; }
+  input[type="checkbox"] { display: inline; width: auto; margin: 0 .4rem 0 0; }
+  button { font: inherit; padding: .4rem .8rem; margin: .6rem .4rem 0 0; cursor: pointer; }
+  small { display: block; opacity: .7; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; vertical-align: top; padding: .4rem .6rem .4rem 0; border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent); }
+  td button { margin-top: 0; margin-bottom: .3rem; }
+  tr.archived td:not(:last-child) { opacity: .55; }
+  article { border: 1px solid color-mix(in srgb, currentColor 25%, transparent); border-radius: .5rem; padding: .2rem 1rem 1rem; margin: 1rem 0; }
+  article p, td { white-space: pre-wrap; overflow-wrap: anywhere; }
+  audio { display: block; margin-top: .6rem; }
+  nav { display: flex; gap: .4rem; margin-top: 1rem; border-bottom: 1px solid color-mix(in srgb, currentColor 25%, transparent); }
+  nav button { margin: 0; border: 0; border-bottom: 3px solid transparent; background: none; color: inherit; padding: .5rem .9rem; }
+  nav button[aria-pressed="true"] { font-weight: 700; border-bottom-color: currentColor; }
+  #prompt-today { white-space: pre-wrap; }
+  /* The pool is long: what a button far down did is said where it can be read. */
+  #prompts-status { position: sticky; top: 0; z-index: 1; margin: 0; padding: .4rem 0; background: Canvas; }
+  #prompts-status:empty { padding: 0; }
+  #queue li { margin: .4rem 0; }
+  #queue button { margin-top: 0; }
+  #pool img { display: block; width: 3.5rem; height: 3.5rem; object-fit: cover; border-radius: .3rem; }
+  .error { color: #c62828; }
+  @media (prefers-color-scheme: dark) { .error { color: #ff8a80; } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Hear Me Out admin</h1>
+  <button type="button" id="sign-out" hidden>Sign out</button>
+</header>
+<p id="notice" role="status"></p>
+
+<section id="sign-in" hidden>
+  <form id="phone-form">
+    <label for="phone">Phone number of your Hear Me Out account</label>
+    <input id="phone" type="tel" autocomplete="tel" placeholder="+15551234567" pattern="\+[0-9 \(\)\-]{7,22}" title="With the country code, like +15551234567" required>
+    <button>Send code</button>
+  </form>
+  <form id="code-form" hidden>
+    <label for="code">Code from the text message</label>
+    <input id="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" title="Six digits" required>
+    <button>Sign in</button>
+    <button type="button" id="other-number">Use a different number</button>
+  </form>
+</section>
+
+<main id="admin" hidden>
+  <nav aria-label="Sections">
+    <button type="button" id="tab-communities" aria-pressed="true">Communities</button>
+    <button type="button" id="tab-reports" aria-pressed="false">Reports</button>
+  </nav>
+
+  <section id="panel-communities">
+   <div id="community-list">
+    <h2>Communities</h2>
+    <button type="button" id="communities-reload">Reload</button>
+    <p id="communities-status" role="status"></p>
+    <table>
+      <thead>
+        <tr><th>Name</th><th>Timezone</th><th>Latitude, longitude</th><th>Email domains</th><th>Members</th><th>Status</th><th>Actions</th></tr>
+      </thead>
+      <tbody id="communities"></tbody>
+    </table>
+
+    <form id="community-form">
+      <h3 id="community-form-title">New community</h3>
+      <label for="c-name">Name</label>
+      <input id="c-name" maxlength="80" required>
+      <label for="c-timezone">Timezone</label>
+      <select id="c-timezone" required></select>
+      <small>Fixed once the community is created.</small>
+      <label for="c-latitude">Latitude</label>
+      <input id="c-latitude" type="number" step="any" min="-90" max="90" required>
+      <label for="c-longitude">Longitude</label>
+      <input id="c-longitude" type="number" step="any" min="-180" max="180" required>
+      <label for="c-domains">School email domains, one per line</label>
+      <textarea id="c-domains" rows="3" placeholder="ucla.edu" required></textarea>
+      <label for="c-requires-email"><input id="c-requires-email" type="checkbox" checked>Members must confirm a school email</label>
+      <small>Unchecked: anyone who finds the community in the app joins in one tap, with no email and no code.</small>
+      <button id="c-save">Save</button>
+      <button type="button" id="c-cancel" hidden>Cancel</button>
+    </form>
+   </div>
+
+   <div id="prompts" hidden>
+    <h2 id="prompts-title" tabindex="-1">Prompts</h2>
+    <button type="button" id="prompts-back">Back to communities</button>
+    <button type="button" id="prompts-reload">Reload</button>
+    <p id="prompts-status" role="status"></p>
+
+    <h3>Today</h3>
+    <p id="prompt-today"></p>
+    <button type="button" id="prompt-change">Change to the next in the queue</button>
+
+    <h3>Coming next</h3>
+    <p id="queue-note"></p>
+    <ol id="queue"></ol>
+    <button type="button" id="queue-save">Save order</button>
+
+    <h3>College prompts</h3>
+    <small>Only prompts marked for colleges are offered and drawn. A prompt in the queue runs before the others, used or not.</small>
+    <label for="pool-filter">Find a prompt</label>
+    <input id="pool-filter" type="search" placeholder="Number or words">
+    <button type="button" id="queue-unused">Queue all unused</button>
+    <p id="pool-note" role="status"></p>
+    <table>
+      <thead>
+        <tr><th>Artwork</th><th>Prompt</th><th>Last used</th><th>Actions</th></tr>
+      </thead>
+      <tbody id="pool"></tbody>
+    </table>
+   </div>
+  </section>
+
+  <section id="panel-reports" hidden>
+    <h2>Reports</h2>
+    <button type="button" id="reports-reload">Reload</button>
+    <p id="reports-status" role="status"></p>
+    <div id="reports"></div>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js"
+        integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK"
+        crossorigin="anonymous"></script>
+<script>
+'use strict';
+
+const $ = (id) => document.getElementById(id);
+
+function say(node, text, isError) {
+  node.textContent = text;
+  node.classList.toggle('error', Boolean(isError));
+}
+
+if (!window.supabase) {
+  say($('notice'), 'supabase-js did not load. Check the connection and reload the page.', true);
+  throw new Error('supabase-js did not load');
+}
+
+// The project URL and the publishable key, the two public values the app
+// ships (hmo-ios/Core/Supabase/SupabaseService.swift).
+const db = supabase.createClient(
+  'https://oxownhqtqwqdjvhqecoz.supabase.co',
+  'sb_publishable_Jsk5aLowVIYNmAzlORaqOA_m2No2UHO',
+  // sessionStorage: closing the tab signs out.
+  { auth: { storage: window.sessionStorage, detectSessionInUrl: false } },
+);
+
+function el(tag, text, props) {
+  const node = document.createElement(tag);
+  if (text != null) node.textContent = text;
+  return Object.assign(node, props);
+}
+
+function button(label) {
+  return el('button', label, { type: 'button' });
+}
+
+const when = (iso) => new Date(iso).toLocaleString();
+
+function show(view) {
+  $('sign-in').hidden = view !== 'sign-in';
+  $('admin').hidden = view !== 'admin';
+  $('sign-out').hidden = view === 'sign-in';
+}
+
+// Every admin call goes through here. 42501 is the server saying the account
+// is not on the admin list: the admin part goes away, whenever it happens.
+async function rpc(name, args) {
+  const { data, error } = await db.rpc(name, args);
+  if (error && error.code === '42501') {
+    show('not-admin');
+    say($('notice'), 'This account is not an admin.', true);
+    closePrompts(); // an unsaved order goes too: nothing is left for the browser to ask about
+  }
+  if (error) throw error;
+  return data;
+}
+
+// One step behind a button: ask if it destroys something, lock the button,
+// run, and put a failure in the status line.
+async function act(control, status, question, run) {
+  if (question && !confirm(question)) return;
+  control.disabled = true;
+  try {
+    await run();
+  } catch (error) {
+    say(status, error.message || String(error), true);
+  } finally {
+    control.disabled = false;
+  }
+}
+
+// ---- Sign-in ---------------------------------------------------------------
+
+let phone = '';
+
+function showSignIn() {
+  show('sign-in');
+  $('phone-form').hidden = false;
+  $('code-form').hidden = true;
+  $('code').value = '';
+  $('communities').replaceChildren();
+  $('reports').replaceChildren();
+  closePrompts();
+}
+
+$('phone-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  phone = $('phone').value.replace(/[\s()-]/g, '');
+  act(event.target.querySelector('button'), $('notice'), null, async () => {
+    // shouldCreateUser false: the page signs app accounts in and never makes one.
+    const { error } = await db.auth.signInWithOtp({ phone, options: { shouldCreateUser: false } });
+    if (error) throw error;
+    say($('notice'), `Code sent to ${phone}.`);
+    $('phone-form').hidden = true;
+    $('code-form').hidden = false;
+    $('code').focus();
+  });
+});
+
+$('code-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  act(event.target.querySelector('button'), $('notice'), null, async () => {
+    const { error } = await db.auth.verifyOtp({ phone, token: $('code').value.trim(), type: 'sms' });
+    if (error) throw error;
+    await openAdmin();
+  });
+});
+
+$('other-number').addEventListener('click', () => {
+  say($('notice'), '');
+  showSignIn();
+});
+
+$('sign-out').addEventListener('click', () => {
+  if (!mayDropOrder()) return;
+  act($('sign-out'), $('notice'), null, async () => {
+    // scope local: the default ends the account's every session, the phone app's too.
+    const { error } = await db.auth.signOut({ scope: 'local' });
+    if (error) throw error; // still signed in: say so instead of showing the form
+    say($('notice'), '');
+    showSignIn();
+  });
+});
+
+// A session that could not be refreshed ends here too. Nothing of the client
+// is called from inside this callback (it would wait on itself).
+db.auth.onAuthStateChange((event) => {
+  if (event === 'SIGNED_OUT') showSignIn();
+});
+
+async function openAdmin() {
+  show('loading');
+  say($('notice'), 'Loading…');
+  let communities;
+  try {
+    communities = await rpc('admin_list_communities');
+  } catch (error) {
+    // 42501 already said "not an admin" (rpc); anything else is said here.
+    if (error.code !== '42501') say($('notice'), `Couldn't load the communities: ${error.message}. Reload the page to try again.`, true);
+    return;
+  }
+  say($('notice'), '');
+  renderCommunities(communities);
+  fillForm(null);
+  showTab('communities');
+  show('admin');
+  // Loaded at once though its tab is not the one shown: the tab says how many wait.
+  act($('reports-reload'), $('reports-status'), null, loadReports);
+}
+
+// ---- Tabs ------------------------------------------------------------------
+
+function showTab(name) {
+  for (const tab of ['communities', 'reports']) {
+    $(`panel-${tab}`).hidden = tab !== name;
+    $(`tab-${tab}`).setAttribute('aria-pressed', String(tab === name));
+  }
+}
+
+$('tab-communities').addEventListener('click', () => showTab('communities'));
+$('tab-reports').addEventListener('click', () => showTab('reports'));
+
+// ---- Communities -----------------------------------------------------------
+
+let editing = null; // the community in the form; null = a new one
+
+async function loadCommunities() {
+  renderCommunities(await rpc('admin_list_communities'));
+}
+
+function renderCommunities(list) {
+  const status = $('communities-status');
+  say(status, list.length ? '' : 'No communities yet.');
+  $('communities').replaceChildren(...list.map((community) => {
+    const archived = Boolean(community.archived_at);
+    const edit = button('Edit');
+    edit.addEventListener('click', () => fillForm(community));
+
+    const archive = button(archived ? 'Unarchive' : 'Archive');
+    const question = archived
+      ? `Unarchive "${community.name}"? It is back on Discover and in its members' feeds.`
+      : `Archive "${community.name}"? It leaves Discover and its members' feeds, and nobody can join. Nothing is deleted.`;
+    archive.addEventListener('click', () => act(archive, status, question, async () => {
+      await rpc('admin_set_community_archived', { p_id: community.id, p_archived: !archived });
+      await loadCommunities();
+      say(status, `${archived ? 'Unarchived' : 'Archived'} "${community.name}".`);
+    }));
+
+    const actions = el('td');
+    actions.append(edit);
+    // An archived community gets no question, so there is nothing to order.
+    if (!archived) {
+      const prompts = button('Prompts');
+      prompts.addEventListener('click', () => openPrompts(prompts, community));
+      actions.append(prompts);
+    }
+    actions.append(archive);
+    const row = el('tr', null, { className: archived ? 'archived' : '' });
+    row.append(
+      el('td', community.name),
+      el('td', community.timezone),
+      el('td', `${community.latitude}, ${community.longitude}`),
+      // Only an explicit false opens a community: a server without the column reads as closed.
+      el('td', [...(community.email_domains || []), ...(community.requires_email === false ? ['No email needed to join'] : [])].join('\n')),
+      el('td', String(community.member_count)),
+      el('td', archived ? `Archived ${when(community.archived_at)}` : 'Active'),
+      actions,
+    );
+    return row;
+  }));
+}
+
+const zones = $('c-timezone');
+zones.append(new Option('Choose…', ''), ...Intl.supportedValuesOf('timeZone').map((zone) => new Option(zone)));
+
+function fillForm(community) {
+  editing = community;
+  $('community-form-title').textContent = community ? `Edit ${community.name}` : 'New community';
+  $('c-name').value = community ? community.name : '';
+  // A zone the server knows under a name this browser does not list.
+  if (community && ![...zones.options].some((option) => option.value === community.timezone)) {
+    zones.append(new Option(community.timezone));
+  }
+  zones.value = community ? community.timezone : '';
+  zones.disabled = Boolean(community); // the server never changes a community's timezone
+  $('c-latitude').value = community ? community.latitude : '';
+  $('c-longitude').value = community ? community.longitude : '';
+  $('c-domains').value = community ? (community.email_domains || []).join('\n') : '';
+  $('c-requires-email').checked = !community || community.requires_email !== false;
+  $('c-cancel').hidden = !community;
+  if (community) $('c-name').focus();
+}
+
+$('c-cancel').addEventListener('click', () => fillForm(null));
+
+$('community-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  act($('c-save'), $('communities-status'), null, async () => {
+    const saved = await rpc('admin_save_community', {
+      p_id: editing ? editing.id : null,
+      p_name: $('c-name').value,
+      p_timezone: zones.value,
+      p_latitude: Number($('c-latitude').value),
+      p_longitude: Number($('c-longitude').value),
+      p_email_domains: $('c-domains').value.split('\n').map((domain) => domain.trim()).filter(Boolean),
+      p_requires_email: $('c-requires-email').checked,
+    });
+    fillForm(null);
+    await loadCommunities();
+    say($('communities-status'), `Saved "${saved.name}".`);
+  });
+});
+
+$('communities-reload').addEventListener('click', () => {
+  act($('communities-reload'), $('communities-status'), null, loadCommunities);
+});
+
+// ---- Prompts ---------------------------------------------------------------
+// One community's questions: today's, the order of the coming ones, and the
+// pool they come from (supabase/migrations/20261121120500_community_prompts.sql).
+
+let promptsFor = null;  // the community whose prompts are open
+let today = null;       // its question of the running day; null = not drawn yet
+let pool = new Map();   // id -> prompt: every prompt a community may be asked
+let poolRows = [];      // the pool's table rows, with what the filter and the buttons need
+let queue = [];         // the coming prompts' ids as shown; "Save order" stores them
+let queueSaved = true;
+
+const promptName = (prompt) => `#${prompt.sheet_no} ${prompt.question}`;
+
+function timeLeft(iso) {
+  const minutes = Math.max(0, Math.floor((new Date(iso) - Date.now()) / 60000));
+  return `${Math.floor(minutes / 60)} h ${minutes % 60} min left`;
+}
+
+function closePrompts() {
+  promptsFor = null;
+  queueSaved = true;
+  $('prompts').hidden = true;
+  $('community-list').hidden = false;
+}
+
+// An order that was changed and not saved is only dropped when the admin says so.
+const mayDropOrder = () => queueSaved || confirm('The order has changes that are not saved. Drop them?');
+
+// The browser's own reload, or the tab closed: the browser asks, with its own words.
+window.addEventListener('beforeunload', (event) => {
+  if (queueSaved) return;
+  event.preventDefault();
+  event.returnValue = true; // for a browser that does not take preventDefault() here
+});
+
+function openPrompts(control, community) {
+  act(control, $('communities-status'), null, async () => {
+    promptsFor = community;
+    await loadPrompts(true);
+    $('prompts-title').textContent = `Prompts of ${community.name}`;
+    $('pool-filter').value = '';
+    filterPool();
+    say($('prompts-status'), '');
+    $('community-list').hidden = true;
+    $('prompts').hidden = false;
+    $('prompts-title').focus();
+  });
+}
+
+// An order with unsaved changes stays as it is, also one changed while this
+// read was on its way. `drop`: show the server's order whatever is on screen.
+async function loadPrompts(drop) {
+  const data = await rpc('admin_community_prompts', { p_group_id: promptsFor.id });
+  today = data.today;
+  pool = new Map(data.pool.map((prompt) => [prompt.id, prompt]));
+  if (drop || queueSaved) {
+    queue = data.queue;
+    queueSaved = true;
+  } else {
+    queue = queue.filter((id) => pool.has(id));
+  }
+  renderPool();
+  renderQueue();
+}
+
+function renderToday() {
+  if (today) {
+    const takes = `${today.take_count} ${today.take_count === 1 ? 'take' : 'takes'} so far`;
+    $('prompt-today').textContent = `${promptName(today)}\n${timeLeft(today.expires_at)}, ${takes}.`;
+  } else {
+    $('prompt-today').textContent = 'Not drawn yet: nobody has opened this community since its last noon.';
+  }
+}
+
+// What each button may do follows from the order and from today's prompt.
+// Called when either changes, and after act(), which hands its button back enabled.
+function syncControls() {
+  const isToday = (id) => Boolean(today && today.pool_id === id);
+  $('queue-save').disabled = queueSaved;
+  // Off too when the first queued prompt is today's already: there is nothing to change.
+  $('prompt-change').disabled = !queue.length || isToday(queue[0]);
+  for (const row of poolRows) {
+    // Today's prompt is not queued: the server leaves it out of a saved order.
+    row.queue.disabled = isToday(row.prompt.id) || queue.includes(row.prompt.id);
+    row.use.disabled = isToday(row.prompt.id);
+  }
+}
+
+// Today's question becomes this prompt. The server keeps the deadline and
+// archives the row that was live, with its takes.
+function useToday(control, prompt) {
+  const question = `Make "${promptName(prompt)}" today's prompt of "${promptsFor.name}"? `
+    + `The deadline stays${today ? ` (${timeLeft(today.expires_at)})` : ''}.`
+    // A day with no prompt yet has no row and no take to archive.
+    + (today ? ` Takes recorded so far today (${today.take_count}) are archived: `
+      + 'members no longer see them and answer the new prompt. This cannot be undone.' : '');
+  act(control, $('prompts-status'), question, async () => {
+    await rpc('admin_set_today_prompt', { p_group_id: promptsFor.id, p_pool_id: prompt.id });
+    queue = queue.filter((id) => id !== prompt.id); // the server took it out of the saved queue too
+    await loadPrompts();
+    say($('prompts-status'), `Today's prompt is now "${promptName(prompt)}".`);
+  }).then(syncControls);
+}
+
+$('prompt-change').addEventListener('click', () => useToday($('prompt-change'), pool.get(queue[0])));
+
+// `focus`: the button to give the focus back to, as [prompt id, label].
+function renderQueue(focus) {
+  say($('queue-note'), queueSaved
+    ? (queue.length ? '' : 'Nothing queued. The next prompt is a starter on the community\'s first day. After that it is one the community never had, picked at random, and once it had them all, the one it had longest ago.')
+    : 'The order has changes that are not saved.');
+  $('queue').replaceChildren(...queue.map((id, index) => {
+    const prompt = pool.get(id);
+    const item = el('li', `${promptName(prompt)} `);
+    const moves = [
+      ['Up', index > 0, () => queue.splice(index - 1, 0, ...queue.splice(index, 1))],
+      ['Down', index < queue.length - 1, () => queue.splice(index + 1, 0, ...queue.splice(index, 1))],
+      ['To top', index > 0, () => queue.unshift(...queue.splice(index, 1))],
+      ['Remove', true, () => queue.splice(index, 1)],
+    ];
+    for (const [label, possible, move] of moves) {
+      const control = button(label);
+      control.setAttribute('aria-label', `${label}: ${promptName(prompt)}`);
+      control.disabled = !possible;
+      control.addEventListener('click', () => {
+        move();
+        queueSaved = false;
+        renderQueue([id, label]);
+      });
+      item.append(control);
+      if (focus && focus[0] === id && focus[1] === label) queueMicrotask(() => refocus(item, control));
+    }
+    return item;
+  }));
+  renderToday();
+  syncControls();
+  // A removed prompt has no button left to take the focus.
+  if (focus && !queue.includes(focus[0])) $('queue-save').focus();
+}
+
+// The button that was pressed, or, when the move left it disabled (the first
+// entry cannot go up), the first button of its entry that still works.
+function refocus(item, control) {
+  (control.disabled ? item.querySelector('button:not(:disabled)') : control).focus();
+}
+
+$('queue-save').addEventListener('click', () => {
+  act($('queue-save'), $('prompts-status'), null, async () => {
+    const sent = [...queue];
+    await rpc('admin_set_prompt_queue', { p_group_id: promptsFor.id, p_pool_ids: sent });
+    // An order changed while the save was on its way is not the one stored: it stays, unsaved.
+    queueSaved = String(queue) === String(sent);
+    renderQueue();
+    let unread = '';
+    try {
+      // Read again: the server stores an order without today's prompt, and
+      // today's may have been drawn since the panel was loaded.
+      await loadPrompts();
+    } catch (error) {
+      // The order is stored all the same: the line says that first.
+      unread = ` Couldn't read it back: ${error.message || error}`;
+    }
+    // queueSaved as it is now: a change made while the read was on its way is unsaved too.
+    const saved = !queueSaved ? 'Saved the order as it was when Save order was pressed. The changes made since then are not saved.'
+      : unread ? 'Saved the order.'
+      : `Saved the order: ${queue.length} ${queue.length === 1 ? 'prompt' : 'prompts'}.`;
+    say($('prompts-status'), saved + unread, Boolean(unread));
+  }).then(syncControls);
+});
+
+function renderPool() {
+  poolRows = [...pool.values()].map((prompt) => {
+    const art = el('td');
+    if (prompt.image_path) {
+      // prompt-images is a public bucket; the artwork loads as its row comes near the screen.
+      const { bucket, name } = storagePath(prompt.image_path);
+      art.append(el('img', null, { loading: 'lazy', alt: '', src: db.storage.from(bucket).getPublicUrl(name).data.publicUrl }));
+    }
+    const add = button('Queue');
+    add.setAttribute('aria-label', `Queue: ${promptName(prompt)}`);
+    add.addEventListener('click', () => {
+      queue.push(prompt.id);
+      queueSaved = false;
+      renderQueue();
+    });
+    const use = button('Use today');
+    use.setAttribute('aria-label', `Use today: ${promptName(prompt)}`);
+    use.addEventListener('click', () => useToday(use, prompt));
+    const actions = el('td');
+    actions.append(add, use);
+    const row = el('tr');
+    row.append(
+      art,
+      el('td', promptName(prompt) + (prompt.is_starter ? '\n(a starter: first on a community\'s first day)' : '')),
+      el('td', prompt.last_used ? `Used ${prompt.last_used}` : 'Never used'),
+      actions,
+    );
+    return { prompt, row, queue: add, use };
+  });
+  $('pool').replaceChildren(...poolRows.map((entry) => entry.row));
+  filterPool();
+}
+
+function filterPool() {
+  const words = $('pool-filter').value.trim().toLowerCase();
+  let shown = 0;
+  for (const { prompt, row } of poolRows) {
+    row.hidden = !promptName(prompt).toLowerCase().includes(words);
+    if (!row.hidden) shown += 1;
+  }
+  say($('pool-note'), words ? `${shown} of ${poolRows.length} prompts match.` : `${poolRows.length} prompts.`);
+}
+
+$('pool-filter').addEventListener('input', filterPool);
+
+// Every prompt this community never had, in sheet-number order, after what is queued.
+$('queue-unused').addEventListener('click', () => {
+  const unused = [...pool.values()].filter((prompt) => !prompt.last_used && !queue.includes(prompt.id));
+  if (!unused.length) return say($('prompts-status'), 'Every unused prompt is already in the queue.');
+  queue.push(...unused.map((prompt) => prompt.id));
+  queueSaved = false;
+  renderQueue();
+  say($('prompts-status'), `Queued ${unused.length} unused ${unused.length === 1 ? 'prompt' : 'prompts'}. Save the order to keep it.`);
+});
+
+$('prompts-reload').addEventListener('click', () => {
+  if (mayDropOrder()) act($('prompts-reload'), $('prompts-status'), null, () => loadPrompts(true));
+});
+
+$('prompts-back').addEventListener('click', () => {
+  if (mayDropOrder()) closePrompts();
+});
+
+// ---- Reports ---------------------------------------------------------------
+
+async function loadReports() {
+  const list = await rpc('admin_list_reports');
+  $('tab-reports').textContent = list.length ? `Reports (${list.length})` : 'Reports';
+  say($('reports-status'), list.length ? '' : 'No open reports.');
+  $('reports').replaceChildren(...list.map(reportCard));
+}
+
+$('reports-reload').addEventListener('click', () => {
+  act($('reports-reload'), $('reports-status'), null, loadReports);
+});
+
+// audio_path is "<bucket>/<the object's name in it>".
+function storagePath(audioPath) {
+  const slash = audioPath.indexOf('/');
+  return { bucket: audioPath.slice(0, slash), name: audioPath.slice(slash + 1) };
+}
+
+function labelled(label, text) {
+  const line = el('p');
+  line.append(el('b', `${label}: `), text);
+  return line;
+}
+
+// The file first: its storage rule needs the report, and the report goes with
+// the take's row. Returns a note when storage had no file to delete.
+async function removeTake(report) {
+  let note = '';
+  if (report.content.audio_path) {
+    const { bucket, name } = storagePath(report.content.audio_path);
+    const { data, error } = await db.storage.from(bucket).remove([name]);
+    if (error) throw new Error(`The audio file was not deleted, so nothing is removed: ${error.message}`);
+    // No error and nothing deleted: a retry after the file went, or a file the storage rule hides.
+    if (!data || !data.length) note = ` Storage deleted no file for it (already gone, or not visible): ${report.content.audio_path}`;
+  }
+  try {
+    await rpc('admin_remove_take', { p_recording_id: report.target_id });
+  } catch (error) {
+    throw new Error(`The audio file is deleted but the take is still there: ${error.message}`);
+  }
+  return note;
+}
+
+function reportCard(report) {
+  const content = report.content || {};
+  const isTake = report.kind === 'take';
+  const what = isTake ? 'take' : 'message';
+  const who = report.reported_username ? `@${report.reported_username}` : 'a deleted account';
+  const where = report.group_name || 'a deleted group';
+  const count = `${report.report_count} ${report.report_count === 1 ? 'report' : 'reports'}`;
+  const queue = $('reports-status');
+  const status = el('p');
+  status.setAttribute('role', 'status');
+
+  const card = el('article');
+  card.append(
+    el('h3', `${isTake ? 'Take' : 'Message'} by ${who} in ${where}${report.is_community ? ' (community)' : ''}`),
+    el('p', `${count}: ${(report.reasons || []).join(', ')}. First on ${when(report.first_reported_at)}.`),
+  );
+  if (!report.target_exists) card.append(el('p', 'The message itself is already deleted. This is the copy its report kept.'));
+  if (content.body) card.append(labelled('Text', content.body));
+  if (content.sticker) card.append(labelled('Sticker', content.sticker));
+  if (content.transcript) card.append(labelled('Transcript', content.transcript));
+  if (content.duration_seconds != null) card.append(labelled('Length', `${content.duration_seconds} s`));
+
+  if (content.audio_path) {
+    const play = button('Play audio');
+    play.addEventListener('click', () => act(play, status, null, async () => {
+      const { bucket, name } = storagePath(content.audio_path);
+      const { data, error } = await db.storage.from(bucket).createSignedUrl(name, 300);
+      if (error) throw error;
+      const audio = el('audio', null, { controls: true, autoplay: true, src: data.signedUrl });
+      // The link lasts five minutes; after that the button comes back.
+      audio.addEventListener('error', () => {
+        audio.replaceWith(play);
+        say(status, "Couldn't play the audio. Try again.", true);
+      });
+      say(status, '');
+      play.replaceWith(audio);
+    }));
+    card.append(play);
+  }
+
+  const actions = el('div');
+  if (report.target_exists) {
+    const remove = button(`Remove ${what}`);
+    const question = isTake
+      ? `Remove this take by ${who} and delete its audio? This cannot be undone.`
+      : `Remove this message by ${who} for everyone? This cannot be undone.`;
+    remove.addEventListener('click', () => act(remove, status, question, async () => {
+      let note = '';
+      try {
+        if (isTake) note = await removeTake(report);
+        else await rpc('admin_remove_chat_message', { p_message_id: report.target_id });
+      } catch (error) {
+        remove.textContent = 'Retry remove';
+        throw error;
+      }
+      await loadReports();
+      say(queue, `Removed the ${what} by ${who}.${note}`);
+    }));
+    actions.append(remove);
+  }
+
+  const dismiss = button('Dismiss');
+  dismiss.addEventListener('click', () => act(dismiss, status, `Dismiss the ${count} on this ${what}? Nothing is removed.`, async () => {
+    await rpc('admin_dismiss_report', { p_kind: report.kind, p_target_id: report.target_id });
+    await loadReports();
+    say(queue, `Dismissed the ${count} on the ${what} by ${who}.`);
+  }));
+  actions.append(dismiss);
+
+  if (report.is_community && report.group_id && report.reported_user_id) {
+    const ban = button('Ban from community');
+    const question = `Ban ${who} from "${where}"? They leave it and cannot join again. Their takes and messages stay.`;
+    ban.addEventListener('click', () => act(ban, status, question, async () => {
+      await rpc('admin_ban_from_community', { p_group_id: report.group_id, p_user_id: report.reported_user_id });
+      say(status, `Banned ${who} from "${where}".`);
+    }));
+    actions.append(ban);
+  }
+
+  card.append(actions, status);
+  return card;
+}
+
+// ---- Start -----------------------------------------------------------------
+
+(async () => {
+  const { data } = await db.auth.getSession();
+  if (data.session) await openAdmin();
+  else showSignIn();
+})().catch((error) => say($('notice'), `Couldn't start: ${error.message || error}. Reload the page to try again.`, true));
+</script>
+</body>
+</html>

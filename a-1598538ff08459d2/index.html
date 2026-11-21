@@ -58,7 +58,7 @@
 <section id="sign-in" hidden>
   <form id="phone-form">
     <label for="phone">Phone number of your Hear Me Out account</label>
-    <input id="phone" type="tel" autocomplete="tel" placeholder="+15551234567" pattern="\+[0-9 \(\)\-]{7,22}" title="With the country code, like +15551234567" required>
+    <input id="phone" type="tel" autocomplete="tel" placeholder="+15551234567" pattern=" *(\+|00)[0-9 .\(\)\-]{7,22}" title="With the country code, like +15551234567 or 0015551234567. Spaces, brackets, hyphens and dots are fine." required>
     <button>Send code</button>
   </form>
   <form id="code-form" hidden>
@@ -233,10 +233,17 @@ function showSignIn() {
 
 $('phone-form').addEventListener('submit', (event) => {
   event.preventDefault();
-  phone = $('phone').value.replace(/[\s()-]/g, '');
+  // Sent as +<digits>, whatever was typed around them; 00 stands for the +.
+  phone = '+' + $('phone').value.replace(/^ *00/, '').replace(/\D/g, '');
   act(event.target.querySelector('button'), $('notice'), null, async () => {
     // shouldCreateUser false: the page signs app accounts in and never makes one.
     const { error } = await db.auth.signInWithOtp({ phone, options: { shouldCreateUser: false } });
+    // With shouldCreateUser false the server refuses a number no account has, and one it
+    // finds malformed, as otp_disabled, "Signups not allowed for otp". The code is on the
+    // error only when the browser may read the answer's version header.
+    if (error && (error.code === 'otp_disabled' || error.message === 'Signups not allowed for otp')) {
+      throw new Error('No Hear Me Out account has this phone number. Check each digit, and type it with the country code, the way you sign in to the app.');
+    }
     if (error) throw error;
     say($('notice'), `Code sent to ${phone}.`);
     $('phone-form').hidden = true;

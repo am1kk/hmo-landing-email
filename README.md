@@ -7,6 +7,7 @@ The website for Hear Me Out, `hearmeout.social`: the landing page, the invite pa
 | `index.html` | Landing page. A self-contained bundler export, not hand-written HTML: the page lives as a JSON string in `<script type="__bundler/template">`. The outer `<head>` (title, link-preview tags) is plain HTML. |
 | `404.html` | Invite page and not-found page in one. Its script treats `/i/<CODE>` as an invite and everything else as not found. |
 | `privacy.html`, `terms.html`, `legal.css` | Legal pages. |
+| `otp-test.html` | Throwaway test page: checks that iOS Safari offers "From Messages" AutoFill for SMS codes bound to `hearmeout.social`. |
 | `og-preview.jpg` | The link-preview image (1200x630) used by every page. |
 | `.well-known/apple-app-site-association` | Universal links for the iOS app (`/i/*`). |
 | `worker/index.js` | Cloudflare Worker, runs only for `/i/*` and `/.well-known/*`. |

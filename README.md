@@ -9,6 +9,7 @@ The website for Hear Me Out, `hearmeout.social`: the landing page, the invite pa
 | `privacy.html`, `terms.html`, `legal.css` | Legal pages. |
 | `og-preview.jpg` | The link-preview image (1200x630) used by every page. |
 | `.well-known/apple-app-site-association` | Universal links for the iOS app (`/i/*`). |
+| `_headers` | Response headers Cloudflare adds to static files; today only the admin page's (see [Admin page](#admin-page)). |
 | `worker/index.js` | Cloudflare Worker, runs only for `/i/*` and `/.well-known/*`. |
 | `wrangler.jsonc`, `package.json` | Cloudflare config, build and deploy scripts. |
 
@@ -79,6 +80,18 @@ The invite page (`/i/<CODE>` in `404.html`) sends named events to Mixpanel, the 
 If an ad blocker stops the Mixpanel script, the page works as before and no events are sent.
 
 These are web-only events. Accepting an invite happens in the app (`onboarding_invite_code_accepted`, `onboarding_invite_join_tapped`), and those events carry no `invite_code` and a different `distinct_id`, so Mixpanel shows a web funnel (viewed → preview `valid` → open/get-app tapped, per `invite_code`) and a separate app funnel that can't be joined. And since `/i/*` is a universal link, people who already have the app usually skip this page: web counts mostly cover visitors without the app.
+
+## Admin page
+
+The app's admin tool is served from the folder `a-1598538ff08459d2/` as a hidden page: linked from nowhere, not indexed, not guessable. It is not secret (this repo is public): it holds only the app's public Supabase URL and publishable key, and the server checks every admin action against its list of admin accounts.
+
+- **Source:** `admin/index.html` in `am1kk/hmo-ios`, copied here byte for byte. Never edit it here; change it in hmo-ios and copy it again.
+- **Updating:** fetch the file from the branch it lives on (`main` by default; add `?ref=<branch>` otherwise) and copy it over `index.html` in that folder:
+  ```
+  gh api "repos/am1kk/hmo-ios/contents/admin/index.html" -H "Accept: application/vnd.github.raw" > /tmp/admin.html
+  ```
+  Its `shasum -a 256` must equal the source's (`shasum -a 256 admin/index.html` in hmo-ios), in the repo and in `dist/` after `npm run build`.
+- **Kept out of search:** `_headers` gives everything in that folder `X-Robots-Tag: noindex, nofollow` and `Cache-Control: no-store`. The page is deliberately in no `robots.txt` and no sitemap: a `Disallow` line would advertise the path.
 
 ## DNS and email
 
